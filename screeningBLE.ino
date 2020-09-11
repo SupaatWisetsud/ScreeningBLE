@@ -20,7 +20,9 @@ BLECharacteristic *pCharacteristic;
 
 
 #include <ArduinoJson.h>
-#include <base64.h>
+
+StaticJsonDocument<512> doc;
+
 #include <SD.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
@@ -43,14 +45,14 @@ TFT_eFEX  fex = TFT_eFEX(&tft);    // Create TFT_eFX object "efx" with pointer t
 
 String CurrentPage = "init";
 float percentage,percentage_count = 0, percentage_all_step = 80, Io, I, Ibg, total_Io525,total_Io660, total_I525, total_I660;
-//calibrate
-float calibrate_percentage, calibrate_Io, calibrate_I, calibrate_Ibg, 
-      calibrate_total_Io525, calibrate_total_Io660, calibrate_total_I525, calibrate_total_I660;
       
 int LED525 = 12, LED660 = 14;
 
 bool statusBluetooth = false;
 int countDevice = 0;
+byte count_sample = 0, current_count_sample = 0, repattion = 1;
+
+float Io660[10], Io525[10], I660[10], I525[10];
 
 String json_string;
 /**************************************************************************/
@@ -277,16 +279,16 @@ void transferData(const String& datapackage){
   
   while(i < datapackage.length()){
     
-    if((i + 3) >= datapackage.length()){
+    if((i + 18) >= datapackage.length()){
       pCharacteristic->setValue(datapackage.substring(i, datapackage.length()).c_str());
       pCharacteristic->notify(); 
     }else{
-      pCharacteristic->setValue(json_string.substring(i, i+3).c_str());
+      pCharacteristic->setValue(json_string.substring(i, i+18).c_str());
       pCharacteristic->notify(); 
     }
     
-    i += 3;
-    delay(50);
+    i += 18;
+    delay(300);
   }
 
 }
@@ -364,48 +366,19 @@ class MyCharacteristicCallback: public BLECharacteristicCallbacks {
         Serial.println("*********");
   
 //        Serial.println(message);
-
-        StaticJsonDocument<512> doc;
-
-        DeserializationError err = deserializeJson(doc, message);
         
+        DeserializationError err = deserializeJson(doc, message);
+
         if(err){
           Serial.print("ArduinoJson Error: ");
           Serial.println(err.c_str());
         }
 
-        //command-************************
-        if(doc["command"] == "b"){
-
-          tft.setCursor(185, 225, 2);
-          tft.setTextColor(TFT_WHITE,TFT_BLACK);  
-          tft.setTextSize(2);
-          tft.printf("Calibrate");
-          
-          tft.setTextColor(TFT_WHITE);
-          tft.setTextSize(1); 
-          calibrate525();
-          calibrate660();
-          
-          json_string = "{\"A525\":" + String(calibrate_total_Io525/10) + ", \"A660\":" + String(calibrate_total_Io660/10) + "}";
-          
-          transferData(json_string);
-          
-          tft.fillScreen(0xFFFFF);
-          drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
-          
-          calibrate_percentage = 0;
-          json_string = "";
-        }
-
         if(doc["command"] == "s"){
-          
+          count_sample = doc["data"]["count_sample"];
+          repattion = doc["data"]["repattion"];
+       
         }
-
-        //end command-*******************************
-        
-        pCharacteristic->setValue("end");
-        pCharacteristic->notify();
         
       }
       
@@ -446,65 +419,202 @@ void setupBluetooth(){
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
-//=========================== Calibrate 525======================================
-void calibrate525(){
+//=========================== Calibrate======================================
+void calibrate(){
+
+  tft.setCursor(185, 225, 2);
+  tft.setTextColor(TFT_WHITE,TFT_BLACK);  
+  tft.setTextSize(2);
+  tft.printf("Calibrate");
   
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(1); 
+  // Io525
   for(int i = 1; i <= 10 ; i++){
-    calibrate_Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
-    
-    calibrate_percentage += 2.5; 
-    
-    fex.drawProgressBar(96, 266, 300, 30, calibrate_percentage, 0x000000, TFT_BLUE);
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
     tft.setCursor(210, 272, 2);
     tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", calibrate_percentage);
+    tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
     digitalWrite(LED525, HIGH);
     delay(200); //ensure light turned on
-    calibrate_Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
     digitalWrite(LED525, LOW);
-    
-    calibrate_percentage += 2.5; 
-    fex.drawProgressBar(96, 266, 300, 30, calibrate_percentage, 0x000000, TFT_BLUE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
     tft.setCursor(210, 272, 2);
     tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", calibrate_percentage);
+    tft.printf("%.1f %%", percentage);
     
-//    calibrate_total_Io525 += calibrate_Io - calibrate_Ibg;
-    calibrate_total_Io525 = 3414.215 ;
+    Io525[i-1] = Io - Ibg;
+    total_Io525 += Io - Ibg;
   }
-}
-
-//==========================calibrate 660=============================
-void calibrate660(){
-   
-   
-   for(int i = 1; i <= 10 ; i++){
-    calibrate_Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+  
+  //Io660
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
     
-    calibrate_percentage += 2.5; 
-    fex.drawProgressBar(96, 266, 300, 30, calibrate_percentage, 0x000000, TFT_BLUE);
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
     tft.setCursor(210, 272, 2);
     tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", calibrate_percentage);
-
+    tft.printf("%.1f %%", percentage);
+    
     //LED 660 ON
     digitalWrite(LED660, HIGH);
     delay(200); //ensure light turned on
-    calibrate_Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 660 OFF
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED660, LOW);
     
-    calibrate_percentage += 2.5; 
-    fex.drawProgressBar(96, 266, 300, 30, calibrate_percentage, 0x000000, TFT_BLUE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
     tft.setCursor(210, 272, 2);
     tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", calibrate_percentage);
+    tft.printf("%.1f %%", percentage);
+
+    Io660[i-1] = Io - Ibg;
+    total_Io660 += Io - Ibg;
+  }
+
+  json_string += "{\"Io660\":["+String(Io660[0])+","+String(Io660[1])+","+String(Io660[2])+","+String(Io660[3])+","+String(Io660[4])+","+String(Io660[5])+","+String(Io660[6])+","+String(Io660[7])+","+String(Io660[8])+","+String(Io660[9])+"],";
+  json_string += "\"Io525\":["+String(Io525[0])+","+String(Io525[1])+","+String(Io525[2])+","+String(Io525[3])+","+String(Io525[4])+","+String(Io525[5])+","+String(Io525[6])+","+String(Io525[7])+","+String(Io525[8])+","+String(Io525[9])+"],";
+  json_string += "\"Io_abs525\":\"" + String(total_Io525/10) + "\" ,\"Io_abs660\": \"" + String(total_Io660/10) + "\"}";
+      
+  transferData(json_string);
+  
+  tft.fillScreen(0xFFFFF);
+  drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
+  
+  percentage = 0;
+  percentage_count = 0;
+  Io = 0;
+  Ibg = 0;
+  
+  json_string = "";
+  
+  pCharacteristic->setValue("end");
+  pCharacteristic->notify();
+
+  DeserializationError err = deserializeJson(doc, "{}");
     
-//    calibrate_total_Io660 += calibrate_Io - calibrate_Ibg;
-    calibrate_total_Io660 = 255.218;
+  if(err){
+    Serial.print("ArduinoJson Error: ");
+    Serial.println(err.c_str());
+  }
+}
+//====================================================================
+void measureI(){
+
+  tft.setCursor(148, 225, 2);
+  tft.setTextColor(TFT_WHITE,TFT_BLACK);  
+  tft.setTextSize(2);
+  tft.printf("Standrard Curve");
+  
+  tft.setTextColor(TFT_WHITE);
+  tft.setTextSize(1); 
+  
+   Serial.print("Repattion");
+  //I 660
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    //LED 660 ON
+    digitalWrite(LED660, HIGH);
+    delay(200); //ensure light turned on
+    I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    //LED 660 OFF
+    digitalWrite(LED660, LOW);
+    
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    I660[i-1] = I - Ibg;
+    
+    total_I660 += I - Ibg;
+  }
+  
+  //I 525
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    //LED 525 ON
+    digitalWrite(LED525, HIGH);
+    delay(200); //ensure light turned on
+    I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    //LED 525 OFF
+    digitalWrite(LED525, LOW);
+    
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+    
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+
+    I525[i-1] = I - Ibg;
+    
+    total_I525 += I - Ibg;
+  }
+    
+  json_string += "{\"I660\":["+String(I660[0])+","+String(I660[1])+","+String(I660[2])+","+String(I660[3])+","+String(I660[4])+","+String(I660[5])+","+String(I660[6])+","+String(I660[7])+","+String(I660[8])+","+String(I660[9])+"],";
+  json_string += "\"I525\":["+String(I525[0])+","+String(I525[1])+","+String(I525[2])+","+String(I525[3])+","+String(I525[4])+","+String(I525[5])+","+String(I525[6])+","+String(I525[7])+","+String(I525[8])+","+String(I525[9])+"],";
+  json_string += "\"abs525\":\"" + String(log(total_I525/total_Io525)) + "\" ,\"abs660\": \"" + String(log(total_I525/total_Io525)) + "\"}";
+  
+  transferData(json_string);
+      
+  tft.fillScreen(0xFFFFF);
+  drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
+  
+  //count sample in arduino + 1
+  current_count_sample += 1;
+        
+  percentage = 0;
+  percentage_count = 0;
+  I = 0;
+  Ibg = 0;
+  total_I525 = 0;
+  total_I660 = 0;      
+  json_string = "";
+  
+  pCharacteristic->setValue("end");
+  pCharacteristic->notify();
+
+  DeserializationError err = deserializeJson(doc, "{}");
+    
+  if(err){
+    Serial.print("ArduinoJson Error: ");
+    Serial.println(err.c_str());
   }
 }
 //====================================================================
@@ -844,6 +954,55 @@ void loop() {
       CurrentPage = "bluetooth";
     }
 
+    //start command
+    
+    //blanks
+    if(doc["command"] == "b"){
+      
+      calibrate();
+      
+      return;
+    }
+
+    //standard Curve
+    if(doc["command"] == "s"){
+      measureI();
+      return;
+    }
+
+    //Accept Standard Curve
+    if(doc["command"] == "accept"){
+      Serial.print("Current count :");
+      Serial.println(current_count_sample);
+      
+      Serial.print("Count sample :");
+      Serial.println(count_sample);
+      
+      if(current_count_sample == count_sample){
+          current_count_sample = 0;
+          
+          pCharacteristic->setValue("success");
+          pCharacteristic->notify();
+
+          DeserializationError err = deserializeJson(doc, "{}");
+        
+          if(err){
+            Serial.print("ArduinoJson Error: ");
+            Serial.println(err.c_str());
+          }
+          return;
+      }
+
+      measureI();
+      return;
+    }
+
+    if(doc["command"] == "repact"){
+      current_count_sample -= 1;
+      measureI();
+      return;
+    }
+    //end command
     
   }
 
