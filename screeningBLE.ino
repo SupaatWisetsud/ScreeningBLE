@@ -5,6 +5,9 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
 
+#define SDA 27
+#define SCL 26
+
 Adafruit_TSL2591 tsl = Adafruit_TSL2591(2591);
 
 #include <BLEDevice.h>
@@ -50,7 +53,6 @@ int LED525 = 12, LED660 = 14;
 
 bool statusBluetooth = false;
 int countDevice = 0;
-byte count_sample = 0, current_count_sample = 0, repattion = 1;
 
 float Io660[10], Io525[10], I660[10], I525[10];
 
@@ -294,35 +296,7 @@ void transferData(const String& datapackage){
 }
 
 
-//######################################################################
-// init sd card and check sd card
-//######################################################################
-void checkSDCard() {
-  if(!SD.begin()){
-    Serial.println("Card Mount Failed");
-    return;
-  }
-  uint8_t cardType = SD.cardType();
 
-  if(cardType == CARD_NONE){
-    Serial.println("No SD card attached");
-    return;
-  }
-
-  Serial.print("SD Card Type: ");
-  if(cardType == CARD_MMC){
-    Serial.println("MMC");
-  } else if(cardType == CARD_SD){
-    Serial.println("SDSC");
-  } else if(cardType == CARD_SDHC){
-    Serial.println("SDHC");
-  } else {
-    Serial.println("UNKNOWN");
-  }
-
-  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %lluMB\n", cardSize);
-}
 
 //#######################################################################
 // setup bluetooth
@@ -373,12 +347,6 @@ class MyCharacteristicCallback: public BLECharacteristicCallbacks {
           Serial.print("ArduinoJson Error: ");
           Serial.println(err.c_str());
         }
-
-        if(doc["command"] == "s"){
-          count_sample = doc["data"]["count_sample"];
-          repattion = doc["data"]["repattion"];
-       
-        }
         
       }
       
@@ -419,17 +387,75 @@ void setupBluetooth(){
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
-//=========================== Calibrate======================================
-void calibrate(){
+//=======================blank 525====================================
 
-  tft.setCursor(185, 225, 2);
-  tft.setTextColor(TFT_WHITE,TFT_BLACK);  
-  tft.setTextSize(2);
-  tft.printf("Calibrate");
+void blank525() {
+    // Io525
+
+  total_Io525 = 0;
   
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(1); 
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 4;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    //LED 525 ON
+    digitalWrite(LED525, LOW);
+    delay(200); //ensure light turned on
+    Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    //LED 525 OFF
+    digitalWrite(LED525, HIGH);
+    percentage_count += 4;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    Io525[i-1] = Io - Ibg;
+    total_Io525 += Io - Ibg;
+    
+  }
+   // Serial.print(String(total_Io525/10));
+  json_string = "{\"Io525\":["+String(Io525[0])+","+String(Io525[1])+","+String(Io525[2])+","+String(Io525[3])+","+String(Io525[4])+","+String(Io525[5])+","+String(Io525[6])+","+String(Io525[7])+","+String(Io525[8])+","+String(Io525[9])+"],";
+  json_string += "\"Io_abs525\":\"" + String(total_Io525/10) + "\"}";
+      
+  transferData(json_string);
+  Serial.print(json_string);
+  tft.fillScreen(0xFFFFF);
+  drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
+  
+  percentage = 0;
+  percentage_count = 0;
+  Io = 0;
+  Ibg = 0;
+  
+  json_string = "";
+  
+  pCharacteristic->setValue("end");
+  pCharacteristic->notify();
+
+  DeserializationError err = deserializeJson(doc, "{}");
+    
+  if(err){
+    Serial.print("ArduinoJson Error: ");
+    Serial.println(err.c_str());
+  }
+
+//  advancedRead();
+
+}
+//=======================blank 525 660 ===============================
+void blank525660() {
   // Io525
+  total_Io525 = 0;
+  
   for(int i = 1; i <= 10 ; i++){
     Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
     percentage_count += 2;
@@ -441,11 +467,11 @@ void calibrate(){
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     delay(200); //ensure light turned on
     Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
 
@@ -459,6 +485,7 @@ void calibrate(){
   }
   
   //Io660
+  total_Io660 = 0;
   for(int i = 1; i <= 10 ; i++){
     Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
     percentage_count += 2;
@@ -470,11 +497,11 @@ void calibrate(){
     tft.printf("%.1f %%", percentage);
     
     //LED 660 ON
-    digitalWrite(LED660, HIGH);
+    digitalWrite(LED660, LOW);
     delay(200); //ensure light turned on
     Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 660 OFF
-    digitalWrite(LED660, LOW);
+    digitalWrite(LED660, HIGH);
     
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
@@ -487,7 +514,7 @@ void calibrate(){
     total_Io660 += Io - Ibg;
   }
 
-  json_string += "{\"Io660\":["+String(Io660[0])+","+String(Io660[1])+","+String(Io660[2])+","+String(Io660[3])+","+String(Io660[4])+","+String(Io660[5])+","+String(Io660[6])+","+String(Io660[7])+","+String(Io660[8])+","+String(Io660[9])+"],";
+  json_string = "{\"Io660\":["+String(Io660[0])+","+String(Io660[1])+","+String(Io660[2])+","+String(Io660[3])+","+String(Io660[4])+","+String(Io660[5])+","+String(Io660[6])+","+String(Io660[7])+","+String(Io660[8])+","+String(Io660[9])+"],";
   json_string += "\"Io525\":["+String(Io525[0])+","+String(Io525[1])+","+String(Io525[2])+","+String(Io525[3])+","+String(Io525[4])+","+String(Io525[5])+","+String(Io525[6])+","+String(Io525[7])+","+String(Io525[8])+","+String(Io525[9])+"],";
   json_string += "\"Io_abs525\":\"" + String(total_Io525/10) + "\" ,\"Io_abs660\": \"" + String(total_Io660/10) + "\"}";
       
@@ -513,50 +540,74 @@ void calibrate(){
     Serial.println(err.c_str());
   }
 }
-//====================================================================
-void measureI(){
 
-  tft.setCursor(148, 225, 2);
-  tft.setTextColor(TFT_WHITE,TFT_BLACK);  
-  tft.setTextSize(2);
-  tft.printf("Standrard Curve");
-  
-  tft.setTextColor(TFT_WHITE);
-  tft.setTextSize(1); 
-  
-   Serial.print("Repattion");
-  //I 660
-  for(int i = 1; i <= 10 ; i++){
-    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
-    percentage_count += 2;
-    percentage = percentage_count*100/percentage_all_step;
-
-    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
-    tft.setCursor(210, 272, 2);
-    tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", percentage);
-    
-    //LED 660 ON
-    digitalWrite(LED660, HIGH);
-    delay(200); //ensure light turned on
-    I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
-    //LED 660 OFF
-    digitalWrite(LED660, LOW);
-    
-    percentage_count += 2;
-    percentage = percentage_count*100/percentage_all_step;
-
-    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
-    tft.setCursor(210, 272, 2);
-    tft.fillRect(208,270,45,20,TFT_BLUE);
-    tft.printf("%.1f %%", percentage);
-    
-    I660[i-1] = I - Ibg;
-    
-    total_I660 += I - Ibg;
-  }
+//======================= measure 525 ==========================================
+void measure525(){
   
   //I 525
+  total_I525 = 0;
+  
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 4;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+    
+    //LED 525 ON
+    digitalWrite(LED525, LOW);
+    delay(200); //ensure light turned on
+    I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    //LED 525 OFF
+    digitalWrite(LED525, HIGH);
+    
+    percentage_count += 4;
+    percentage = percentage_count*100/percentage_all_step;
+    
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+
+    I525[i-1] = I - Ibg;
+    
+    total_I525 += I - Ibg;
+  }
+  
+  json_string = "{\"I525\":["+String(I525[0])+","+String(I525[1])+","+String(I525[2])+","+String(I525[3])+","+String(I525[4])+","+String(I525[5])+","+String(I525[6])+","+String(I525[7])+","+String(I525[8])+","+String(I525[9])+"],";
+  json_string += "\"abs525\":\"" + String(total_I525/10) + "\"}";
+  
+  transferData(json_string);
+      
+  tft.fillScreen(0xFFFFF);
+  drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
+        
+  percentage = 0;
+  percentage_count = 0;
+  I = 0;
+  Ibg = 0;
+  total_I525 = 0;  
+  json_string = "";
+  
+  pCharacteristic->setValue("end");
+  pCharacteristic->notify();
+
+  DeserializationError err = deserializeJson(doc, "{}");
+    
+  if(err){
+    Serial.print("ArduinoJson Error: ");
+    Serial.println(err.c_str());
+  }
+}
+
+//======================= measure 525 660 ==========================================
+void measure525660(){
+  
+  //I 525
+  total_I525 = 0;
   for(int i = 1; i <= 10 ; i++){
     Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
     percentage_count += 2;
@@ -568,11 +619,11 @@ void measureI(){
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     delay(200); //ensure light turned on
     I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
@@ -586,25 +637,53 @@ void measureI(){
     
     total_I525 += I - Ibg;
   }
+
+  //Io660
+  total_I660 = 0;
+  for(int i = 1; i <= 10 ; i++){
+    Ibg = tsl.getLuminosity(TSL2591_VISIBLE);
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
     
-  json_string += "{\"I660\":["+String(I660[0])+","+String(I660[1])+","+String(I660[2])+","+String(I660[3])+","+String(I660[4])+","+String(I660[5])+","+String(I660[6])+","+String(I660[7])+","+String(I660[8])+","+String(I660[9])+"],";
+    //LED 660 ON
+    digitalWrite(LED660, LOW);
+    delay(200); //ensure light turned on
+    I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
+    //LED 660 OFF
+    digitalWrite(LED660, HIGH);
+    
+    percentage_count += 2;
+    percentage = percentage_count*100/percentage_all_step;
+    
+    fex.drawProgressBar(96, 266, 300, 30, percentage, 0x000000, TFT_BLUE);
+    tft.setCursor(210, 272, 2);
+    tft.fillRect(208,270,45,20,TFT_BLUE);
+    tft.printf("%.1f %%", percentage);
+
+    I660[i-1] = I - Ibg;
+    total_I660 += I - Ibg;
+  }
+ 
+  json_string = "{\"I660\":["+String(I660[0])+","+String(I660[1])+","+String(I660[2])+","+String(I660[3])+","+String(I660[4])+","+String(I660[5])+","+String(I660[6])+","+String(I660[7])+","+String(I660[8])+","+String(I660[9])+"],";
   json_string += "\"I525\":["+String(I525[0])+","+String(I525[1])+","+String(I525[2])+","+String(I525[3])+","+String(I525[4])+","+String(I525[5])+","+String(I525[6])+","+String(I525[7])+","+String(I525[8])+","+String(I525[9])+"],";
-  json_string += "\"abs525\":\"" + String(log(total_I525/total_Io525)) + "\" ,\"abs660\": \"" + String(log(total_I525/total_Io525)) + "\"}";
+  json_string += "\"abs525\":\"" + String(total_I525/10) + "\" ,\"abs660\": \"" + String(total_I660/10) + "\"}";
   
   transferData(json_string);
       
   tft.fillScreen(0xFFFFF);
   drawArrayJpeg(bluetooth, sizeof(bluetooth), 0, 0);
-  
-  //count sample in arduino + 1
-  current_count_sample += 1;
         
   percentage = 0;
   percentage_count = 0;
   I = 0;
   Ibg = 0;
   total_I525 = 0;
-  total_I660 = 0;      
+  total_I660 = 0;
   json_string = "";
   
   pCharacteristic->setValue("end");
@@ -617,19 +696,20 @@ void measureI(){
     Serial.println(err.c_str());
   }
 }
+
 //====================================================================
 void setup(void) {
   pinMode(LED525, OUTPUT);
   pinMode(LED660, OUTPUT);
-
-  digitalWrite(LED525, LOW);
-  digitalWrite(LED660, LOW);
+  
+  digitalWrite(LED525, HIGH);
+  digitalWrite(LED660, HIGH);
 
   pinMode(LED_BUILTIN,OUTPUT);
   
   //////////////////////SENSOR////////////////////////////////
   //sda,scl
-  Wire.begin(25,26);
+  Wire.begin(SDA, SCL);
   if (tsl.begin()) 
   {
     Serial.println(F("Found a TSL2591 sensor"));
@@ -664,8 +744,6 @@ void setup(void) {
   /* setup bluetooth */
   setupBluetooth();
 
-   /* check sd card */
-  checkSDCard();
 }
 
 //====================================================================
@@ -740,11 +818,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 525 ON
-        digitalWrite(LED525, HIGH);
+        digitalWrite(LED525, LOW);
         delay(200); //ensure light turned on
         Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 525 OFF
-        digitalWrite(LED525, LOW);
+        digitalWrite(LED525, HIGH);
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
         fex.drawProgressBar(96, 266, 300, 30, percentage, 0xFFFFFF, TFT_BLUE);
@@ -778,11 +856,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 660 ON
-        digitalWrite(LED660, HIGH);
+        digitalWrite(LED660, LOW);
         delay(200); //ensure light turned on
         Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 660 OFF
-        digitalWrite(LED660, LOW);
+        digitalWrite(LED660, HIGH);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -828,11 +906,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 525 ON
-        digitalWrite(LED525, HIGH);
+        digitalWrite(LED525, LOW);
         delay(200); //ensure light turned on
         I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 525 OFF
-        digitalWrite(LED525, LOW);
+        digitalWrite(LED525, HIGH);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -873,11 +951,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
         
         //LED 660 ON
-        digitalWrite(LED660, HIGH);
+        digitalWrite(LED660, LOW);
         delay(200); //ensure light turned on
         I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 660 OFF
-        digitalWrite(LED660, LOW);
+        digitalWrite(LED660, HIGH);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -957,51 +1035,27 @@ void loop() {
     //start command
     
     //blanks
-    if(doc["command"] == "b"){
-      
-      calibrate();
-      
+    if(doc["command"] == "b525"){
+      blank525();
       return;
     }
 
-    //standard Curve
+    if(doc["command"] == "b525660"){
+      blank525660();
+      return;
+    }
+
     if(doc["command"] == "s"){
-      measureI();
+      measure525();
       return;
     }
 
-    //Accept Standard Curve
-    if(doc["command"] == "accept"){
-      Serial.print("Current count :");
-      Serial.println(current_count_sample);
-      
-      Serial.print("Count sample :");
-      Serial.println(count_sample);
-      
-      if(current_count_sample == count_sample){
-          current_count_sample = 0;
-          
-          pCharacteristic->setValue("success");
-          pCharacteristic->notify();
-
-          DeserializationError err = deserializeJson(doc, "{}");
-        
-          if(err){
-            Serial.print("ArduinoJson Error: ");
-            Serial.println(err.c_str());
-          }
-          return;
-      }
-
-      measureI();
+    if(doc["command"] == "m") {
+      measure525660();
       return;
     }
 
-    if(doc["command"] == "repact"){
-      current_count_sample -= 1;
-      measureI();
-      return;
-    }
+    
     //end command
     
   }
