@@ -405,11 +405,11 @@ void blank525() {
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     delay(200); //ensure light turned on
     Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     percentage_count += 4;
     percentage = percentage_count*100/percentage_all_step;
 
@@ -467,11 +467,11 @@ void blank525660() {
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     delay(200); //ensure light turned on
     Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
 
@@ -497,11 +497,11 @@ void blank525660() {
     tft.printf("%.1f %%", percentage);
     
     //LED 660 ON
-    digitalWrite(LED660, LOW);
+    digitalWrite(LED660, HIGH);
     delay(200); //ensure light turned on
     Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 660 OFF
-    digitalWrite(LED660, HIGH);
+    digitalWrite(LED660, LOW);
     
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
@@ -558,11 +558,11 @@ void measure525(){
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     delay(200); //ensure light turned on
     I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     
     percentage_count += 4;
     percentage = percentage_count*100/percentage_all_step;
@@ -619,11 +619,11 @@ void measure525660(){
     tft.printf("%.1f %%", percentage);
     
     //LED 525 ON
-    digitalWrite(LED525, LOW);
+    digitalWrite(LED525, HIGH);
     delay(200); //ensure light turned on
     I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 525 OFF
-    digitalWrite(LED525, HIGH);
+    digitalWrite(LED525, LOW);
     
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
@@ -651,11 +651,11 @@ void measure525660(){
     tft.printf("%.1f %%", percentage);
     
     //LED 660 ON
-    digitalWrite(LED660, LOW);
+    digitalWrite(LED660, HIGH);
     delay(200); //ensure light turned on
     I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
     //LED 660 OFF
-    digitalWrite(LED660, HIGH);
+    digitalWrite(LED660, LOW);
     
     percentage_count += 2;
     percentage = percentage_count*100/percentage_all_step;
@@ -702,8 +702,8 @@ void setup(void) {
   pinMode(LED525, OUTPUT);
   pinMode(LED660, OUTPUT);
   
-  digitalWrite(LED525, HIGH);
-  digitalWrite(LED660, HIGH);
+  digitalWrite(LED525, LOW);
+  digitalWrite(LED660, LOW);
 
   pinMode(LED_BUILTIN,OUTPUT);
   
@@ -734,7 +734,7 @@ void setup(void) {
   uint16_t PosX, PosY;
 
   tft.init();
-  tft.setRotation(1);
+  tft.setRotation(1); //rotation is 3 and config position touch
   tft.fillScreen(0xFFFF);
   tft.setTextColor(0xFFFFFF);
   
@@ -818,11 +818,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 525 ON
-        digitalWrite(LED525, LOW);
+        digitalWrite(LED525, HIGH);
         delay(200); //ensure light turned on
         Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 525 OFF
-        digitalWrite(LED525, HIGH);
+        digitalWrite(LED525, LOW);
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
         fex.drawProgressBar(96, 266, 300, 30, percentage, 0xFFFFFF, TFT_BLUE);
@@ -856,11 +856,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 660 ON
-        digitalWrite(LED660, LOW);
+        digitalWrite(LED660, HIGH);
         delay(200); //ensure light turned on
         Io = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 660 OFF
-        digitalWrite(LED660, HIGH);
+        digitalWrite(LED660, LOW);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -906,11 +906,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
   
         //LED 525 ON
-        digitalWrite(LED525, LOW);
+        digitalWrite(LED525, HIGH);
         delay(200); //ensure light turned on
         I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 525 OFF
-        digitalWrite(LED525, HIGH);
+        digitalWrite(LED525, LOW);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -951,11 +951,11 @@ void loop() {
         tft.printf("%.0f", Ibg);
         
         //LED 660 ON
-        digitalWrite(LED660, LOW);
+        digitalWrite(LED660, HIGH);
         delay(200); //ensure light turned on
         I = tsl.getLuminosity(TSL2591_VISIBLE); //measure 500ms
         //LED 660 OFF
-        digitalWrite(LED660, HIGH);
+        digitalWrite(LED660, LOW);
         
         percentage_count++;
         percentage = percentage_count*100/percentage_all_step;
@@ -1011,18 +1011,18 @@ void loop() {
   //    Serial.printf("y: %i     ", PosY);
   //    Serial.printf("z: %i \n", tft.getTouchRawZ());
     
-      if (pressed) {
-        tft.setCursor(5, 5, 2);
-        tft.fillRect(2,3,50,36,0x000000); 
-        tft.setCursor(5, 5, 2);
-        tft.printf("x: %i     ", PosX);
-        tft.setCursor(5, 20, 2);
-        tft.printf("y: %i    ", PosY);
+//      if ******************************(pressed) {
+//        tft.setCursor(5, 5, 2);
+//        tft.fillRect(2,3,50,36,0x000000); 
+//        tft.setCursor(5, 5, 2);
+//        tft.printf("x: %i     ", PosX);
+//        tft.setCursor(5, 20, 2);
+//        tft.printf("y: %i    ", PosY);
      
         //tft.drawPixel(PosX, PosY, color); 320-Y //inverse y position
-        tft.fillEllipse(PosX, 320-PosY, 5, 5, color);
-        color += 55;
-      }
+//        tft.fillEllipse(PosX, 320-PosY, 5, 5, color);
+//        color += 55;
+//      }
     }
   }else{
     
